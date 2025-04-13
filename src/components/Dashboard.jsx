@@ -259,7 +259,7 @@ export default function Calendar() {
         ...prev,
         {
           id: created._id,
-          title: created.title || 'Appointment',
+          appoitment_reason: created.title || 'Appointment',
           start: new Date(created.start_time),
           end: new Date(created.end_time),
           patient_id: created.patient_id,

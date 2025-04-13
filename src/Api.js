@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { useEffect } from 'react';
 
-const BASE_URL = 'http://localhost:3000';
-
+// const BASE_URL = 'http://localhost:3000';
+const BASE_URL = 'https://dentist-app-production.up.railway.app'; // Uncomment this line for production
 // --------------------- BRANCHES ---------------------
 export const createBranch = async (branchData) => {
   try {
