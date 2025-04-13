@@ -1,4 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Drawer from '@mui/material/Drawer';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import InputLabel from '@mui/material/InputLabel';
+import FormControl from '@mui/material/FormControl';
 import {
   createAppointment,
   getAppointments,
@@ -6,7 +15,6 @@ import {
   deleteAppointmentById,
   getAppointmentById,
   getAllBranches,
-  // import your new function:
   getAllPatients,
 } from '../Api';
 
@@ -22,22 +30,21 @@ export default function Calendar() {
 
   // Predefined treatment options
   const treatmentOptions = [
-    "RCT",
-    "Filling",
-    "Cleaning",
-    "Cap Measurement",
-    "Cap Fixing",
-    "Ortho"
+    'RCT',
+    'Filling',
+    'Cleaning',
+    'Cap Measurement',
+    'Cap Fixing',
+    'Ortho'
   ];
 
-  // States for new appointment
-  const [showCreatePopup, setShowCreatePopup] = useState(false);
-  const [createPopupPos, setCreatePopupPos] = useState({ x: 0, y: 0 });
+  // States for new appointment (drawer)
+  const [showCreateDrawer, setShowCreateDrawer] = useState(false);
   const [newAppt, setNewAppt] = useState({
-    notes: '',
+    title: '',
     start_time: '',
     end_time: '',
-    patient_id: '',    // Will store the patient's custom_id here
+    patient_id: '',    // Will store the patient's id here
     status: "UPCOMING",
     branch_id: ''
   });
@@ -82,7 +89,6 @@ export default function Calendar() {
         console.error('Error loading branches:', err);
       }
     }
-
     fetchBranches();
   }, []);
 
@@ -93,10 +99,9 @@ export default function Calendar() {
         const dateStr = formatYYYYMMDD(currentDate);
         const serverData = await getAppointments(dateStr);
         const arr = Array.isArray(serverData.data) ? serverData.data : serverData;
-
         const mapped = arr.map((item) => ({
           id: item._id,
-          title: item.notes || 'Appointment',
+          title: item.title || 'Appointment',
           start: new Date(item.start_time),
           end: new Date(item.end_time),
           patient_id: item.patient_id,
@@ -113,33 +118,26 @@ export default function Calendar() {
   // ----------- Title Dropdown outside-click -----------
   useEffect(() => {
     const handleClickOutside = (event) => {
-      // If click is outside the treatment title dropdown
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsDropdownOpen(false);
       }
-      // If click is outside the patient search dropdown
       if (patientDropdownRef.current && !patientDropdownRef.current.contains(event.target)) {
         setPatientDropdownOpen(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // ----------- Searching for Patients -----------
-  // We fetch patients whenever "patientName" changes
   useEffect(() => {
     async function fetchPatients() {
       if (!patientName) {
-        // If no input, clear results
         setPatientResults([]);
         return;
       }
       try {
-        // getAllPatients accepts a searchTerm param
         const results = await getAllPatients(patientName);
-        // results is an array of patient objects
         setPatientResults(results);
       } catch (err) {
         console.error('Error fetching patients:', err);
@@ -157,19 +155,15 @@ export default function Calendar() {
 
   // ------- Patient selection from search results -------
   const handlePatientSelect = (patient) => {
-    // Suppose your patient object is like: { _id, name, custom_id, ... }
-    // If you want to store the patient's custom_id:
     setNewAppt({ ...newAppt, patient_id: patient._id });
-    // Show the patient's name in the input
     setPatientName(patient.name);
-
     setPatientDropdownOpen(false);
   };
 
   // ------- Week Navigation Helpers -------
   function getWeekStart(date) {
     const d = new Date(date);
-    const day = d.getDay(); // Sunday=0
+    const day = d.getDay();
     d.setHours(0, 0, 0, 0);
     d.setDate(d.getDate() - day);
     return d;
@@ -208,8 +202,12 @@ export default function Calendar() {
     return `${y}-${m}-${dd}`;
   }
   function formatTime(hour, minute = 0) {
-    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    const date = new Date();
+    date.setHours(hour, minute, 0, 0);
+    // Use toLocaleTimeString to format the time in 12-hour format with AM/PM.
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true });
   }
+
 
   // ------- Double-click => Create new appointment -------
   function handleDoubleClick(e) {
@@ -217,61 +215,51 @@ export default function Calendar() {
     const rect = calendarRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-
     const relY = y - headerHeight;
     if (relY < 0) return;
     const rawHalfHours = relY / halfHourHeight;
     const hours = Math.floor(rawHalfHours / 2);
     const minutes = (rawHalfHours % 2) * 30;
-
     const dayW = rect.width / 7;
     const dayIndex = Math.floor(x / dayW);
     const dates = getWeekDates();
     if (!dates[dayIndex]) return;
-
     const start = new Date(dates[dayIndex]);
     start.setHours(hours, minutes, 0, 0);
     const end = new Date(start);
     end.setMinutes(start.getMinutes() + 30);
 
+    // Pre-fill new appointment data
     setNewAppt({
-      notes: '',
+      title: '',
       start_time: start.toISOString(),
       end_time: end.toISOString(),
       patient_id: '',
       status: 'UPCOMING',
       branch_id: ''
     });
-    setPatientName(''); // clear patient name field
-    setInputValue('');  // clear treatment field
-    setCreatePopupPos({ x: e.clientX - 150, y: e.clientY });
-    setShowCreatePopup(true);
+    setPatientName('');
+    setInputValue('');
+    setShowCreateDrawer(true);
   }
 
   // ------- Create Appointment -------
   async function handleCreateAppt() {
-    if (!newAppt.notes.trim()) {
-      alert('Enter appointment notes');
-      return;
-    }
-    // newAppt.patient_id is the selected patient's custom_id
-
     try {
       const payload = {
-        notes: newAppt.notes,
+        appoitment_reason: newAppt.title,
         start_time: newAppt.start_time,
         end_time: newAppt.end_time,
-        patient_id: newAppt.patient_id, // custom_id
+        patient_id: newAppt.patient_id,
         status: newAppt.status,
         branch_id: newAppt.branch_id
       };
-
       const created = await createAppointment(payload);
       setAppointments((prev) => [
         ...prev,
         {
           id: created._id,
-          title: created.notes || 'Appointment',
+          title: created.title || 'Appointment',
           start: new Date(created.start_time),
           end: new Date(created.end_time),
           patient_id: created.patient_id,
@@ -279,9 +267,10 @@ export default function Calendar() {
           status: created.status
         },
       ]);
-      setShowCreatePopup(false);
+      setShowCreateDrawer(false);
+      // Reset new appointment state
       setNewAppt({
-        notes: '',
+        title: '',
         start_time: '',
         end_time: '',
         patient_id: '',
@@ -294,30 +283,9 @@ export default function Calendar() {
   }
 
   // ------- Right-click => show detail or delete -------
-  function handleApptMouseDown(e, appt) {
-    e.stopPropagation();
-    // Right-click
-    if (e.button === 2) {
-      e.preventDefault();
-      handleRightClick(e, appt);
-      return;
-    }
-    // Else drag/resize
-    if (e.target.className.includes('resize-handle')) {
-      const dir = e.target.className.includes('top') ? 'top' : 'bottom';
-      setResizingAppt(appt);
-      setResizeDir(dir);
-    } else {
-      setDraggingAppt(appt);
-    }
-    setInitialMouseY(e.clientY);
-    setInitialTimes({ start: new Date(appt.start), end: new Date(appt.end) });
-  }
-
   async function handleRightClick(e, appt) {
     const confirmDel = window.confirm('Delete appt? (Cancel=View details)');
     if (confirmDel) {
-      // Delete
       try {
         await deleteAppointmentById(appt.id);
         setAppointments((prev) => prev.filter((a) => a.id !== appt.id));
@@ -325,7 +293,6 @@ export default function Calendar() {
         console.error('Error deleting appointment:', err);
       }
     } else {
-      // Show detail
       await showAppointmentDetail(e.clientX, e.clientY, appt.id);
     }
   }
@@ -404,7 +371,7 @@ export default function Calendar() {
       const updated = await editAppointment(id, {
         start_time: apt.start.toISOString(),
         end_time: apt.end.toISOString(),
-        notes: apt.title,
+        title: apt.title,
         patient_id: apt.patient_id,
         branch_id: apt.branch_id,
         status: apt.status
@@ -413,14 +380,14 @@ export default function Calendar() {
         prev.map((a) =>
           a.id === id
             ? {
-                ...a,
-                title: updated.notes || 'Appointment',
-                start: new Date(updated.start_time),
-                end: new Date(updated.end_time),
-                patient_id: updated.patient_id,
-                branch_id: updated.branch_id,
-                status: updated.status
-              }
+              ...a,
+              title: updated.title || 'Appointment',
+              start: new Date(updated.start_time),
+              end: new Date(updated.end_time),
+              patient_id: updated.patient_id,
+              branch_id: updated.branch_id,
+              status: updated.status
+            }
             : a
         )
       );
@@ -439,12 +406,10 @@ export default function Calendar() {
   // ------- Render appointments on the grid -------
   function renderAppointments() {
     const weekDates = getWeekDates();
-
     return appointments.map((apt) => {
       const st = new Date(apt.start);
       const en = new Date(apt.end);
-      const dayIndex = st.getDay(); // Sunday=0
-      // check if it's in the current displayed week
+      const dayIndex = st.getDay();
       const isInWeek = weekDates.some(
         (d) =>
           d.getFullYear() === st.getFullYear() &&
@@ -452,22 +417,18 @@ export default function Calendar() {
           d.getDate() === st.getDate()
       );
       if (!isInWeek) return null;
-
-      // Calculate position
       const apptStartHour = st.getHours() + st.getMinutes() / 60;
       const top = headerHeight + (apptStartHour - startHour) * hourHeight;
-      const durationHrs = (en - st) / 36e5; // 3600000 ms = 1 hour
+      const durationHrs = (en - st) / 3600000;
       const height = durationHrs * hourHeight;
       const dayW = 100 / 7;
       const leftPct = dayIndex * dayW;
-
       return (
         <div
           key={apt.id}
           style={{
             position: 'absolute',
             top: `${top}px`,
-            // We shift by 40px to the right for demonstration
             left: `calc(${leftPct}% + 40px)`,
             width: `${dayW}%`,
             height: `${height}px`,
@@ -481,7 +442,25 @@ export default function Calendar() {
             flexDirection: 'column',
             zIndex: 10,
           }}
-          onMouseDown={(e) => handleApptMouseDown(e, apt)}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            // Check for right-click
+            if (e.button === 2) {
+              e.preventDefault();
+              handleRightClick(e, apt);
+            } else {
+              // Drag/resize logic
+              if (e.target.className.includes('resize-handle')) {
+                const dir = e.target.className.includes('top') ? 'top' : 'bottom';
+                setResizingAppt(apt);
+                setResizeDir(dir);
+              } else {
+                setDraggingAppt(apt);
+              }
+              setInitialMouseY(e.clientY);
+              setInitialTimes({ start: new Date(apt.start), end: new Date(apt.end) });
+            }
+          }}
           onContextMenu={(e) => e.preventDefault()}
         >
           <div
@@ -516,17 +495,11 @@ export default function Calendar() {
     });
   }
 
-  // ------- Render -------
+  // ------- Main Render -------
   const calendarHeight = timeSlots.length * halfHourHeight + headerHeight;
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100vh',
-      }}
-    >
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {/* Top Navigation Bar */}
       <div
         style={{
@@ -535,19 +508,19 @@ export default function Calendar() {
           backgroundColor: '#f5f5f5',
         }}
       >
-        <button onClick={() => navigate('today')} style={{ marginRight: '8px' }}>
+        <Button variant="outlined" onClick={() => navigate('today')} style={{ marginRight: '8px' }}>
           Today
-        </button>
-        <button onClick={() => navigate('prev')} style={{ marginRight: '8px' }}>
+        </Button>
+        <Button variant="outlined" onClick={() => navigate('prev')} style={{ marginRight: '8px' }}>
           &lt;
-        </button>
-        <button onClick={() => navigate('next')} style={{ marginRight: '8px' }}>
+        </Button>
+        <Button variant="outlined" onClick={() => navigate('next')} style={{ marginRight: '8px' }}>
           &gt;
-        </button>
+        </Button>
         <strong>{formatRange()}</strong>
       </div>
 
-      {/* Main content area (scrollable) */}
+      {/* Main content area */}
       <div style={{ flex: 1, position: 'relative', overflow: 'auto' }}>
         <div
           ref={calendarRef}
@@ -559,7 +532,7 @@ export default function Calendar() {
           }}
           onDoubleClick={handleDoubleClick}
         >
-          {/* Day headers pinned at top */}
+          {/* Day headers */}
           <div
             style={{
               display: 'flex',
@@ -594,7 +567,7 @@ export default function Calendar() {
             ))}
           </div>
 
-          {/* Time column with half-hour divisions */}
+          {/* Time column */}
           <div
             style={{
               width: '60px',
@@ -614,12 +587,10 @@ export default function Calendar() {
                   height: `${halfHourHeight}px`,
                   borderBottom: '1px solid #eee',
                   textAlign: 'right',
-                  color: '#777',
+                  color: slot.minute === 0 ? '#777' : '#aaa',
                   fontSize: '12px',
                   padding: '2px 5px 0 0',
-                  ...(slot.minute === 0
-                    ? { fontWeight: 'bold' } // Full hour - bold
-                    : { color: '#aaa' })     // Half hour - lighter color
+                  fontWeight: slot.minute === 0 ? 'bold' : 'normal',
                 }}
               >
                 {formatTime(slot.hour, slot.minute)}
@@ -627,7 +598,7 @@ export default function Calendar() {
             ))}
           </div>
 
-          {/* Day columns with half-hour grid */}
+          {/* Grid for each day */}
           <div
             style={{
               display: 'flex',
@@ -660,33 +631,26 @@ export default function Calendar() {
             ))}
           </div>
 
-          {/* Render appointments */}
+          {/* Render Appointments */}
           {renderAppointments()}
         </div>
       </div>
 
-      {/* CREATE POPUP */}
-      {showCreatePopup && (
-        <div
-          style={{
-            position: 'absolute',
-            left: createPopupPos.x,
-            top: createPopupPos.y,
-            width: '400px',
-            backgroundColor: '#fff',
-            border: '1px solid #ccc',
-            padding: '10px',
-            zIndex: 999,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-            borderRadius: '4px',
-          }}
-        >
-          <h4>New Appointment</h4>
-
-          {/* Title/Treatment Options */}
-          <div style={{ position: 'relative', width: '100%', marginBottom: '8px' }} ref={dropdownRef}>
-            <input
-              type="text"
+      {/* New Appointment Drawer */}
+      <Drawer
+        anchor="right"
+        open={showCreateDrawer}
+        onClose={() => setShowCreateDrawer(false)}
+      >
+        <Box sx={{ width: 400, p: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            New Appointment
+          </Typography>
+          {/* Treatment Title and Dropdown */}
+          <Box sx={{ mb: 2, position: 'relative' }} ref={dropdownRef}>
+            <TextField
+              fullWidth
+              label="Select Title"
               placeholder="Select Title"
               value={inputValue}
               onChange={(e) => {
@@ -695,62 +659,51 @@ export default function Calendar() {
                 setIsDropdownOpen(true);
               }}
               onClick={() => setIsDropdownOpen(true)}
-              style={{
-                width: '100%',
-                padding: '4px',
-                borderRadius: '4px',
-                border: '1px solid #ccc'
-              }}
             />
             {isDropdownOpen && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                width: '100%',
-                maxHeight: '200px',
-                overflowY: 'auto',
-                backgroundColor: 'white',
-                border: '1px solid #ccc',
-                borderTop: 'none',
-                borderRadius: '0 0 4px 4px',
-                zIndex: 10,
-                boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
-              }}>
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  width: '100%',
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  bgcolor: 'background.paper',
+                  border: '1px solid #ccc',
+                  borderTop: 'none',
+                  borderRadius: '0 0 4px 4px',
+                  zIndex: 10,
+                  boxShadow: 1,
+                }}
+              >
                 {treatmentOptions
-                  .filter(option => option.toLowerCase().includes(inputValue.toLowerCase()))
+                  .filter(option =>
+                    option.toLowerCase().includes(inputValue.toLowerCase())
+                  )
                   .map((option, index) => (
-                    <div
+                    <Box
                       key={index}
-                      onClick={() => handleTitleChange(option)}
-                      style={{
-                        padding: '8px',
+                      sx={{
+                        p: 1,
                         cursor: 'pointer',
+                        '&:hover': { backgroundColor: '#f5f5f5' },
                       }}
-                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
-                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      onClick={() => handleTitleChange(option)}
                     >
                       {option}
-                    </div>
+                    </Box>
                   ))}
-              </div>
+              </Box>
             )}
-          </div>
+          </Box>
 
-          {/* Notes */}
-          <input
-            type="text"
-            placeholder="Notes"
-            value={newAppt.notes}
-            onChange={(e) => setNewAppt({ ...newAppt, notes: e.target.value })}
-            style={{ width: '100%', marginBottom: '8px', padding: '4px' }}
-          />
 
-          {/* PATIENT SEARCH & SELECT */}
-          <div style={{ marginBottom: '8px', position: 'relative' }} ref={patientDropdownRef}>
-            <label style={{ display: 'block', marginBottom: '4px' }}>Patient Name:</label>
-            <input
-              type="text"
+          {/* Patient Search & Select */}
+          <Box sx={{ mb: 2, position: 'relative' }} ref={patientDropdownRef}>
+            <InputLabel shrink>Patient Name</InputLabel>
+            <TextField
+              fullWidth
               placeholder="Type to search..."
               value={patientName}
               onChange={(e) => {
@@ -758,144 +711,121 @@ export default function Calendar() {
                 setPatientDropdownOpen(true);
               }}
               onClick={() => setPatientDropdownOpen(true)}
-              style={{ width: '100%', padding: '4px' }}
             />
-            {/* Patient results dropdown */}
             {patientDropdownOpen && patientResults.length > 0 && (
-              <div
-                style={{
+              <Box
+                sx={{
                   position: 'absolute',
                   top: '100%',
                   left: 0,
                   width: '100%',
                   maxHeight: '200px',
                   overflowY: 'auto',
-                  backgroundColor: 'white',
+                  bgcolor: 'background.paper',
                   border: '1px solid #ccc',
                   zIndex: 10,
-                  boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                  boxShadow: 1,
                   borderRadius: '0 0 4px 4px',
                 }}
               >
                 {patientResults.map((patient) => (
-                  <div
+                  <Box
                     key={patient._id}
-                    onClick={() => handlePatientSelect(patient)}
-                    style={{
-                      padding: '8px',
+                    sx={{
+                      p: 1,
                       cursor: 'pointer',
+                      '&:hover': { backgroundColor: '#f5f5f5' },
                     }}
-                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
-                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    onClick={() => handlePatientSelect(patient)}
                   >
-                    {/* E.g., show "John Smith (#CUST123)" */}
                     {patient.name} ({patient.custom_id})
-                  </div>
+                  </Box>
                 ))}
-              </div>
+              </Box>
             )}
-          </div>
+          </Box>
 
           {/* Branch Select */}
-          <select
-            value={newAppt.branch_id}
-            onChange={(e) => setNewAppt({ ...newAppt, branch_id: e.target.value })}
-            style={{ width: '100%', padding: '4px', marginBottom: '8px' }}
-          >
-            <option value="">Select Branch</option>
-            {branches.map((branch) => (
-              <option key={branch._id} value={branch._id}>
-                {branch.name}
-              </option>
-            ))}
-          </select>
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel>Branch</InputLabel>
+            <Select
+              value={newAppt.branch_id}
+              label="Branch"
+              onChange={(e) => setNewAppt({ ...newAppt, branch_id: e.target.value })}
+            >
+              <MenuItem value="">
+                <em>Select Branch</em>
+              </MenuItem>
+              {branches.map((branch) => (
+                <MenuItem key={branch._id} value={branch._id}>
+                  {branch.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
 
           {/* Status */}
-          <div style={{ marginBottom: '8px' }}>
-            <label style={{ display: 'block', marginBottom: '4px' }}>Status:</label>
-            <select
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel>Status</InputLabel>
+            <Select
               value={newAppt.status}
+              label="Status"
               onChange={(e) => setNewAppt({ ...newAppt, status: e.target.value })}
-              style={{ width: '100%', padding: '4px' }}
             >
-              <option value="UPCOMING">UPCOMING</option>
-              <option value="COMPLETED">COMPLETED</option>
-              <option value="CANCELLED">CANCELLED</option>
-            </select>
-          </div>
+              <MenuItem value="UPCOMING">UPCOMING</MenuItem>
+              <MenuItem value="COMPLETED">COMPLETED</MenuItem>
+              <MenuItem value="CANCELLED">CANCELLED</MenuItem>
+            </Select>
+          </FormControl>
 
           {/* Start/End Time */}
-          <div>
-            <div style={{ marginBottom: '8px' }}>
-              <label
-                htmlFor="start-time"
-                style={{
-                  display: 'block',
-                  marginBottom: '4px',
-                  fontWeight: 'bold'
-                }}
-              >
-                Start Time:
-              </label>
-              <input
-                id="start-time"
-                type="time"
-                value={newAppt.start_time ? new Date(newAppt.start_time).toTimeString().slice(0, 5) : ''}
-                onChange={(e) => {
-                  const [hours, minutes] = e.target.value.split(':');
-                  const newDate = new Date(newAppt.start_time || new Date());
-                  newDate.setHours(hours, minutes, 0);
-                  setNewAppt({ ...newAppt, start_time: newDate.toISOString() });
-                }}
-                style={{ width: '100%', padding: '4px' }}
-              />
-            </div>
-
-            <div style={{ marginBottom: '8px' }}>
-              <label
-                htmlFor="end-time"
-                style={{
-                  display: 'block',
-                  marginBottom: '4px',
-                  fontWeight: 'bold'
-                }}
-              >
-                End Time:
-              </label>
-              <input
-                id="end-time"
-                type="time"
-                value={newAppt.end_time ? new Date(newAppt.end_time).toTimeString().slice(0, 5) : ''}
-                onChange={(e) => {
-                  const [hours, minutes] = e.target.value.split(':');
-                  const newDate = new Date(newAppt.end_time || new Date());
-                  newDate.setHours(hours, minutes, 0);
-                  setNewAppt({ ...newAppt, end_time: newDate.toISOString() });
-                }}
-                style={{ width: '100%', padding: '4px' }}
-              />
-            </div>
-          </div>
-
-          {/* Buttons */}
-          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-            <button onClick={() => setShowCreatePopup(false)}>Cancel</button>
-            <button
-              onClick={handleCreateAppt}
-              style={{
-                backgroundColor: '#4CAF50',
-                color: 'white',
-                border: 'none',
-                padding: '4px 8px',
+          <Box sx={{ mb: 2 }}>
+            <InputLabel shrink>Start Time</InputLabel>
+            <TextField
+              type="time"
+              fullWidth
+              value={
+                newAppt.start_time
+                  ? new Date(newAppt.start_time).toTimeString().slice(0, 5)
+                  : ''
+              }
+              onChange={(e) => {
+                const [hours, minutes] = e.target.value.split(':');
+                const newDate = new Date(newAppt.start_time || new Date());
+                newDate.setHours(hours, minutes, 0);
+                setNewAppt({ ...newAppt, start_time: newDate.toISOString() });
               }}
-            >
-              Create
-            </button>
-          </div>
-        </div>
-      )}
+              sx={{ mb: 2 }}
+            />
+            <InputLabel shrink>End Time</InputLabel>
+            <TextField
+              type="time"
+              fullWidth
+              value={
+                newAppt.end_time
+                  ? new Date(newAppt.end_time).toTimeString().slice(0, 5)
+                  : ''
+              }
+              onChange={(e) => {
+                const [hours, minutes] = e.target.value.split(':');
+                const newDate = new Date(newAppt.end_time || new Date());
+                newDate.setHours(hours, minutes, 0);
+                setNewAppt({ ...newAppt, end_time: newDate.toISOString() });
+              }}
+            />
+          </Box>
 
-      {/* DETAIL POPUP */}
+          {/* Action Buttons */}
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+            <Button onClick={() => setShowCreateDrawer(false)}>Cancel</Button>
+            <Button variant="contained" onClick={handleCreateAppt}>
+              Create
+            </Button>
+          </Box>
+        </Box>
+      </Drawer>
+
+      {/* Detail Popup */}
       {showDetailPopup && detailInfo && (
         <div
           style={{
@@ -911,22 +841,24 @@ export default function Calendar() {
             borderRadius: '4px',
           }}
         >
-          <h4>Appointment Detail</h4>
-          <p>
-            <strong>Notes:</strong> {detailInfo.notes}
-          </p>
-          <p>
+          <Typography variant="subtitle1">Appointment Detail</Typography>
+          <Typography variant="body2">
+            <strong>Reason:</strong> {detailInfo.title}
+          </Typography>
+          <Typography variant="body2">
             <strong>Patient:</strong> {detailInfo.patient_id?.name || '(none)'}
-          </p>
-          <p>
+          </Typography>
+          <Typography variant="body2">
             <strong>Branch:</strong> {detailInfo.branch_id?.name || '(none)'}
-          </p>
-          <p>
+          </Typography>
+          <Typography variant="body2">
             <strong>Status:</strong> {detailInfo.status}
-          </p>
-          <div style={{ marginTop: '8px', textAlign: 'right' }}>
-            <button onClick={() => setShowDetailPopup(false)}>Close</button>
-          </div>
+          </Typography>
+          <Box sx={{ mt: 1, textAlign: 'right' }}>
+            <Button size="small" onClick={() => setShowDetailPopup(false)}>
+              Close
+            </Button>
+          </Box>
         </div>
       )}
     </div>

@@ -1,16 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import {
-  addPatient,
-  getAllPatients,
-  updatePatientDetails
-} from '../Api'; // Adjust import path as needed
-import DatePicker from "react-datepicker";
+import Drawer from '@mui/material/Drawer';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
+import { addPatient, getAllPatients, updatePatientDetails } from '../Api';
 
-import "react-datepicker/dist/react-datepicker.css";
+// Helper function: converts an ISO date string to "YYYY-MM-DD"
+const formatDate = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return date.toISOString().split('T')[0];
+};
 
-// -------------------- Patient Detail Drawer --------------------
-const PatientDetailDrawer = ({ open, onClose, patient }) => {
-  const [isEditing, setIsEditing] = useState(false);
+/**
+ * PatientFormDrawer Component
+ *
+ * This unified drawer component handles both adding new patients and viewing/editing
+ * an existing patient's details.
+ *
+ * Props:
+ *   - open: Boolean flag to control whether the drawer is open.
+ *   - onClose: Function to call when closing the drawer.
+ *   - patient: (Optional) If provided, contains the details for an existing patient.
+ *   - onSave: Callback function that receives formData when the Save button is clicked.
+ *   - isNew: Boolean flag indicating if the drawer is for adding a new patient.
+ */
+const PatientFormDrawer = ({ open, onClose, patient, onSave, isNew = false }) => {
+  // For new records, form is editable by default.
+  // For existing patients, start in view (disabled) mode unless the user clicks "Edit."
+  const [isEditing, setIsEditing] = useState(isNew);
   const [formData, setFormData] = useState({
     custom_id: '',
     name: '',
@@ -20,387 +39,227 @@ const PatientDetailDrawer = ({ open, onClose, patient }) => {
     email: '',
   });
 
-  // Reset form data whenever "patient" changes
+  // State for field validations
+  const [errors, setErrors] = useState({
+    custom_id: false,
+    name: false,
+    phone: false,
+    email: false,
+    address: false,
+  });
+
+  // Load patient data (if provided) or clear form if adding new
   useEffect(() => {
     if (patient) {
       setFormData({
         custom_id: patient.custom_id || '',
         name: patient.name || '',
-        dob: patient.dob || '',
+        dob: patient.dob ? formatDate(patient.dob) : '',
         address: patient.address || '',
         phone_no: patient.phone_no || '',
         email: patient.email || '',
       });
-      setIsEditing(false);
+      setIsEditing(isNew ? true : false);
+    } else {
+      setFormData({
+        custom_id: '',
+        name: '',
+        dob: '',
+        address: '',
+        phone_no: '',
+        email: '',
+      });
+      setIsEditing(true);
     }
-  }, [patient]);
+  }, [patient, isNew]);
 
-  // For controlled inputs
+  // Helpers to update field values
   const handleFieldChange = (field) => (e) =>
     setFormData({ ...formData, [field]: e.target.value });
-
-  const handleDateChange = (date) => {
-    setFormData({ ...formData, dob: date });
+  const handleDateChange = (e) => {
+    setFormData({ ...formData, dob: e.target.value });
   };
-  // Save edits
-  const handleSave = async () => {
-    if (!patient?._id) return;
-    try {
-      await updatePatientDetails(patient._id, formData);
+
+  // Validations (same as in the New Patient drawer)
+  const validateForm = () => {
+    const newErrors = {
+      custom_id: !formData.custom_id.trim(),
+      name: formData.name.trim().length < 3,
+      phone: !/^\d{10}$/.test(formData.phone_no.trim()),
+      email:
+        formData.email.trim() !== '' &&
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim()),
+      address:
+        formData.address.trim() !== '' && formData.address.trim().length < 4,
+    };
+    setErrors(newErrors);
+    return !Object.values(newErrors).some(Boolean);
+  };
+
+  // Save handler: only save if validations pass. For existing patients, switch to view mode after saving.
+  const handleSave = () => {
+    if (!validateForm()) return;
+    onSave(formData);
+    if (!isNew) {
       setIsEditing(false);
-      // Optionally refresh or show success
-    } catch (err) {
-      console.error('Error updating patient details:', err);
     }
   };
 
-  // Cancel editing
+  // Cancel handler: revert changes. For existing patients, return to view mode.
   const handleCancel = () => {
     if (patient) {
       setFormData({
+        custom_id: patient.custom_id || '',
         name: patient.name || '',
-        dob: patient.dob || '',
+        dob: patient.dob ? formatDate(patient.dob) : '',
         address: patient.address || '',
         phone_no: patient.phone_no || '',
         email: patient.email || '',
       });
+    } else {
+      setFormData({
+        custom_id: '',
+        name: '',
+        dob: '',
+        address: '',
+        phone_no: '',
+        email: '',
+      });
     }
-    setIsEditing(false);
+    if (!isNew) {
+      setIsEditing(false);
+    }
   };
 
-  // If the drawer is closed, render nothing
-  if (!open) return null;
-
   return (
-    // Backdrop
-    <div className="fixed inset-0 z-50 flex">
-      {/* Clickable backdrop to close */}
-      <div
-        className="absolute inset-0 bg-transparent bg-opacity-50"
-        onClick={onClose}
-      ></div>
+    <Drawer anchor="left" open={open} onClose={onClose}>
+      <Box sx={{ width: 350, p: 2 }}>
+        <Typography variant="h6" sx={{ mb: 2, color: '#1565c0' }}>
+          {isNew ? 'Add New Patient' : 'Patient Details'}
+        </Typography>
 
-      {/* Drawer Panel */}
-      <div
-        className={`
-          relative bg-white w-72 sm:w-110 max-w-full h-full shadow-md p-6
-          transform transition-transform duration-300
-        `}
-        style={{ left: 0 }} // pinned to the left
-      >
-        <h2 className="text-xl font-bold mb-4">Patient Details</h2>
-        {patient ? (
-          isEditing ? (
-            // -------------------- EDIT MODE --------------------
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Patient ID
-                </label>
-                <input
-                  className="w-full border border-gray-300 rounded px-2 py-1"
-                  value={formData.custom_id}
-                  onChange={handleFieldChange('custom_id')}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Name
-                </label>
-                <input
-                  className="w-full border border-gray-300 rounded px-2 py-1"
-                  value={formData.name}
-                  onChange={handleFieldChange('name')}
-                />
-              </div>
-              {/* <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  DOB (YYYY-MM-DD)
-                </label>
-                <input
-                  className="w-full border border-gray-300 rounded px-2 py-1"
-                  value={formData.dob}
-                  onChange={handleFieldChange('dob')}
-                />
-              </div> */}
-              <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700">
-          Date of Birth (YYYY-MM-DD)
-        </label>
-        <div className="border border-gray-300 rounded px-2 py-1">
-          <DatePicker
-            selected={formData.dob}
-            onChange={handleDateChange}
-            dateFormat="yyyy-MM-dd"            // Format display in YYYY-MM-DD
-            showYearDropdown                  // Enable year dropdown
-            scrollableYearDropdown            // Allow scrolling in the year dropdown
-            yearDropdownItemNumber={100}        // Display 100 years in the dropdown
-            placeholderText="YYYY-MM-DD"        // Placeholder text for empty value
-            maxDate={new Date()}              // Prevent selection of future dates
-          />
-        </div>
-      </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Address
-                </label>
-                <input
-                  className="w-full border border-gray-300 rounded px-2 py-1"
-                  value={formData.address}
-                  onChange={handleFieldChange('address')}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Phone
-                </label>
-                <input
-                  className="w-full border border-gray-300 rounded px-2 py-1"
-                  value={formData.phone_no}
-                  onChange={handleFieldChange('phone_no')}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Email
-                </label>
-                <input
-                  className="w-full border border-gray-300 rounded px-2 py-1"
-                  value={formData.email}
-                  onChange={handleFieldChange('email')}
-                />
-              </div>
+        <TextField
+          required
+          label="Patient ID"
+          value={formData.custom_id}
+          onChange={handleFieldChange('custom_id')}
+          fullWidth
+          margin="normal"
+          size="small"
+          error={errors.custom_id}
+          helperText={errors.custom_id ? 'Patient ID is required' : ''}
+          // For new patients, the field is editable; for existing ones, it's read-only.
+          disabled={isNew ? !isEditing : true}
+        />
 
-              <div className="flex justify-end space-x-2 pt-4">
-                <button
-                  className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded"
-                  onClick={handleCancel}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded"
-                  onClick={handleSave}
-                >
-                  Save
-                </button>
-              </div>
-            </div>
+        <TextField
+          required
+          label="Full Name"
+          value={formData.name}
+          onChange={handleFieldChange('name')}
+          fullWidth
+          margin="normal"
+          size="small"
+          error={errors.name}
+          helperText={errors.name ? 'Name must be at least 3 characters' : ''}
+          disabled={!isEditing}
+        />
+
+        <TextField
+          type="date"
+          label="Date of Birth"
+          InputLabelProps={{ shrink: true }}
+          value={formData.dob || ''}
+          onChange={handleDateChange}
+          fullWidth
+          margin="normal"
+          size="small"
+          disabled={!isEditing}
+        />
+
+        <TextField
+          label="Address"
+          value={formData.address}
+          onChange={handleFieldChange('address')}
+          fullWidth
+          margin="normal"
+          size="small"
+          error={errors.address}
+          helperText={
+            errors.address ? 'Address must be more than 3 characters' : ''
+          }
+          disabled={!isEditing}
+        />
+
+        <TextField
+          required
+          label="Phone Number"
+          value={formData.phone_no}
+          onChange={handleFieldChange('phone_no')}
+          fullWidth
+          margin="normal"
+          size="small"
+          error={errors.phone}
+          helperText={
+            errors.phone ? 'Phone number must be exactly 10 digits' : ''
+          }
+          disabled={!isEditing}
+        />
+
+        <TextField
+          label="Email"
+          value={formData.email}
+          onChange={handleFieldChange('email')}
+          fullWidth
+          margin="normal"
+          size="small"
+          error={errors.email}
+          helperText={errors.email ? 'Enter a valid email address' : ''}
+          disabled={!isEditing}
+        />
+
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+          {isEditing ? (
+            <>
+              <Button onClick={handleCancel} sx={{ mr: 1 }} size="small">
+                Cancel
+              </Button>
+              <Button variant="contained" onClick={handleSave} size="small">
+                Save
+              </Button>
+            </>
           ) : (
-            // -------------------- VIEW MODE --------------------
-            <div className="space-y-2">
-              <p>
-                <strong>Patient ID:</strong> {patient.custom_id}
-              </p>
-              <p>
-                <strong>Name:</strong> {patient.name}
-              </p>
-              <p>
-                <strong>DOB:</strong> {patient.dob}
-              </p>
-              <p>
-                <strong>Address:</strong> {patient.address}
-              </p>
-              <p>
-                <strong>Phone:</strong> {patient.phone_no}
-              </p>
-              <p>
-                <strong>Email:</strong> {patient.email}
-              </p>
-              <div className="pt-4">
-                <button
-                  className="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded"
-                  onClick={() => setIsEditing(true)}
-                >
-                  Edit
-                </button>
-              </div>
-            </div>
-          )
-        ) : (
-          <p>No patient selected.</p>
-        )}
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
-        >
-          ✕
-        </button>
-      </div>
-    </div>
+            <Button
+              variant="contained"
+              onClick={() => setIsEditing(true)}
+              size="small"
+            >
+              Edit
+            </Button>
+          )}
+        </Box>
+      </Box>
+    </Drawer>
   );
 };
 
-// -------------------- New Patient Drawer --------------------
-const NewPatientDrawer = ({
-  open,
-  onClose,
-  onAddPatient,
-  name,
-  newCoustom_id,
-  dob,
-  address,
-  phone,
-  email,
-  setName,
-  setDob,
-  setNewCoustom_id,
-  setAddress,
-  setPhone,
-  setEmail,
-}) => {
-  if (!open) return null;
-
-  return (
-    // Backdrop
-    <div className="fixed inset-0 z-50 flex">
-      <div
-        className="absolute inset-0 bg-transparent bg-opacity-50"
-        onClick={onClose}
-      ></div>
-
-      {/* Drawer Panel */}
-      <div
-        className={`
-          relative bg-white w-72 sm:w-110 max-w-full h-full shadow-md p-6
-          transform transition-transform duration-300
-        `}
-        style={{ left: 0 }}
-      >
-        <h2 className="text-xl font-bold mb-4">Add New Patient</h2>
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700">
-            Patient ID
-          </label>
-          <input
-            className="w-full border border-gray-300 rounded px-2 py-1"
-            value={newCoustom_id}
-            onChange={(e) => setNewCoustom_id(e.target.value)}
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700">
-            Full Name
-          </label>
-          <input
-            className="w-full border border-gray-300 rounded px-2 py-1"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-        </div>
-        
-        {/* <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700">
-            Date of Birth (YYYY-MM-DD)
-          </label>
-          <input
-            className="w-full border border-gray-300 rounded px-2 py-1"
-            value={dob}
-            onChange={(e) => setDob(e.target.value)}
-          />
-        </div> */}
-         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700">
-            Date of Birth (YYYY-MM-DD)
-          </label>
-          <div className="border border-gray-300 rounded px-2 py-1">
-            <DatePicker
-              selected={dob}
-              onChange={(date) => setDob(date)}
-              dateFormat="yyyy-MM-dd"            // Display format
-              showYearDropdown                   // Enable year dropdown
-              scrollableYearDropdown             // Make it scrollable
-              yearDropdownItemNumber={100}         // Number of years to show
-              placeholderText="YYYY-MM-DD"         // Placeholder text
-              maxDate={new Date()}                // Prevent future dates
-            />
-          </div>
-        </div>
-       
-       
-
-
-        
-        
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700">
-            Address
-          </label>
-          <input
-            className="w-full border border-gray-300 rounded px-2 py-1"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700">
-            Phone
-          </label>
-          <input
-            className="w-full border border-gray-300 rounded px-2 py-1"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700">
-            Email
-          </label>
-          <input
-            className="w-full border border-gray-300 rounded px-2 py-1"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </div>
-
-        <div className="flex justify-end space-x-2 mt-6">
-          <button
-            className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded"
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-          <button
-            className="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded"
-            onClick={onAddPatient}
-          >
-            Save
-          </button>
-        </div>
-
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
-        >
-          ✕
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// -------------------- Main Navbar --------------------
+/**
+ * DentistNavbar Component
+ *
+ * This component serves as your main navigation bar. It handles searching for patients,
+ * opening the drawer for viewing/editing existing patient details, and opening the drawer
+ * for adding a new patient.
+ */
 const DentistNavbar = () => {
-  // Search states
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
-  const [isSearchDrawerOpen, setIsSearchDrawerOpen] = useState(false);
 
-  // New patient drawer state
+  // Control drawer visibility for existing and new patients
+  const [isPatientDrawerOpen, setIsPatientDrawerOpen] = useState(false);
   const [isNewPatientDrawerOpen, setIsNewPatientDrawerOpen] = useState(false);
 
-  // New patient form fields
-  const [newName, setNewName] = useState('');
-  const [newDob, setNewDob] = useState('');
-  const [newCoustom_id, setNewCoustom_id] = useState('');
-  const [newAddress, setNewAddress] = useState('');
-  const [newPhone, setNewPhone] = useState('');
-  const [newEmail, setNewEmail] = useState('');
-
-  // Searching patients
+  // Handle searching by patient name
   const handleSearchChange = async (e) => {
     const val = e.target.value;
     setSearchTerm(val);
@@ -418,7 +277,7 @@ const DentistNavbar = () => {
 
   const handleSearchSelect = (patient) => {
     setSelectedPatient(patient);
-    setIsSearchDrawerOpen(true);
+    setIsPatientDrawerOpen(true);
     setSearchTerm(patient.name);
     setSearchResults([]);
   };
@@ -436,52 +295,52 @@ const DentistNavbar = () => {
     }
   };
 
-  // Add new patient
-  const handleAddPatient = async () => {
+  // Update an existing patient
+  const handleUpdatePatient = async (updatedData) => {
     try {
-      const newPatient = {
-        custom_id: newCoustom_id,
-        name: newName,
-        dob: newDob,
-        address: newAddress,
-        phone_no: newPhone,
-        email: newEmail,
-      };
-      const created = await addPatient(newPatient);
-      console.log('New patient added:', created);
-      // Clear form and close
-      setNewName('');
-      setNewDob('');
-      setNewCoustom_id('');
-      setNewAddress('');
-      setNewPhone('');
-      setNewEmail('');
+      await updatePatientDetails(selectedPatient._id, updatedData);
+      console.log('Patient updated:', updatedData);
+      setIsPatientDrawerOpen(false);
+    } catch (err) {
+      console.error('Error updating patient:', err);
+      alert(err?.response?.data?.message || 'Error updating patient');
+    }
+  };
+
+  // Add a new patient
+  const handleAddPatient = async (newPatientData) => {
+    try {
+      await addPatient(newPatientData);
+      console.log('New patient added:', newPatientData);
       setIsNewPatientDrawerOpen(false);
-    } catch (error) {
-      console.error('Error adding patient:', error);
+    } catch (err) {
+      console.error('Error adding patient:', err);
+      alert(err?.response?.data?.message || 'Error adding patient');
     }
   };
 
   return (
     <>
-      <nav className="bg-teal-600 sticky top-0 z-40">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-white">Kankariya Dental</h1>
+      <nav className="bg-blue-200 bg-opacity-50 sticky top-0 z-40 text-sm">
+        <div className="container mx-auto px-3 py-3 flex items-center justify-between">
+          <h1 className="text-base font-bold text-blue-700">
+            Kankariya Dental
+          </h1>
           <div className="flex items-center space-x-2">
             <div className="relative">
               <input
-                className="px-3 py-1 rounded focus:outline-none"
+                className="px-2 py-1 rounded-md bg-white bg-opacity-80 border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-400 text-sm"
                 type="text"
-                placeholder="Search patient name..."
+                placeholder="Search patient..."
                 value={searchTerm}
                 onChange={handleSearchChange}
               />
               {searchResults.length > 0 && (
-                <div className="absolute top-full left-0 right-0 bg-white mt-1 rounded shadow-lg max-h-48 overflow-y-auto z-50">
+                <div className="absolute top-full left-0 right-0 bg-white rounded-md shadow max-h-40 overflow-y-auto z-50">
                   {searchResults.map((p) => (
                     <div
                       key={p._id}
-                      className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                      className="px-3 py-1 hover:bg-blue-50 cursor-pointer text-sm"
                       onClick={() => handleSearchSelect(p)}
                     >
                       {p.name}
@@ -491,13 +350,7 @@ const DentistNavbar = () => {
               )}
             </div>
             <button
-              className="bg-white text-teal-600 px-3 py-1 rounded"
-              onClick={handleSearchButtonClick}
-            >
-              Search
-            </button>
-            <button
-              className="bg-white text-teal-600 px-3 py-1 rounded"
+              className="bg-white bg-opacity-80 text-blue-700 px-3 py-1 rounded-md border border-blue-300 text-sm"
               onClick={() => setIsNewPatientDrawerOpen(true)}
             >
               New Patient
@@ -506,33 +359,24 @@ const DentistNavbar = () => {
         </div>
       </nav>
 
-      {/* Detail Drawer */}
-      <PatientDetailDrawer
-        open={isSearchDrawerOpen}
-        onClose={() => setIsSearchDrawerOpen(false)}
+      {/* Drawer for viewing/editing an existing patient */}
+      <PatientFormDrawer
+        open={isPatientDrawerOpen}
+        onClose={() => setIsPatientDrawerOpen(false)}
         patient={selectedPatient}
+        onSave={handleUpdatePatient}
+        isNew={false}
       />
-      {/* New Patient Drawer */}
-      <NewPatientDrawer
+
+      {/* Drawer for adding a new patient */}
+      <PatientFormDrawer
         open={isNewPatientDrawerOpen}
         onClose={() => setIsNewPatientDrawerOpen(false)}
-        onAddPatient={handleAddPatient}
-        name={newName}
-        dob={newDob}
-        newCoustom_id={newCoustom_id}
-        address={newAddress}
-        phone={newPhone}
-        email={newEmail}
-        setNewCoustom_id={setNewCoustom_id}
-        setName={setNewName}
-        setDob={setNewDob}
-        setAddress={setNewAddress}
-        setPhone={setNewPhone}
-        setEmail={setNewEmail}
+        onSave={handleAddPatient}
+        isNew={true}
       />
     </>
   );
 };
 
 export default DentistNavbar;
-  
