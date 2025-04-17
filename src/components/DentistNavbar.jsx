@@ -322,7 +322,7 @@ const DentistNavbar = () => {
   return (
     <>
       <nav className="bg-blue-200 bg-opacity-40 sticky top-0 z-40 text-sm">
-        <div className="container mx-auto px-0 py-3 flex items-center justify-between">
+        <div className="container mx-auto px-2 py-3 flex items-center justify-between">
           <h1 className="text-[26px] font-bold text-blue-600 ">
             Kankariya Dental
           </h1>
