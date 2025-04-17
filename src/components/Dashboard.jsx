@@ -124,7 +124,7 @@ export default function Calendar() {
         console.error('Error loading appointments:', err);
       }
     })();
-  }, [currentDate, appointments]);
+  }, [currentDate, draggingAppt]);
 
   // ----------- Title Dropdown outside-click -----------
   useEffect(() => {
