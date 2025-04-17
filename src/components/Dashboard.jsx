@@ -18,6 +18,8 @@ import {
   getAllPatients,
 } from '../Api';
 
+import crossIcon from '../assets/crossIcon.png';
+
 export default function Calendar() {
   // Basic states
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -35,7 +37,7 @@ export default function Calendar() {
     'Cleaning',
     'Cap Measurement',
     'Cap Fixing',
-    'Ortho'
+    'Ortho',
   ];
 
   // States for new appointment (drawer)
@@ -44,14 +46,17 @@ export default function Calendar() {
     title: '',
     start_time: '',
     end_time: '',
-    patient_id: '',    // Will store the patient's id here
-    status: "UPCOMING",
-    branch_id: ''
+    patient_id: '', // Will store the patient's id here
+    status: 'UPCOMING',
+    branch_id: '',
   });
 
   // For detail popup
   const [showDetailPopup, setShowDetailPopup] = useState(false);
-  const [detailPopupPos, setDetailPopupPos] = useState({ x: 0, y: 0 });
+  const [detailPopupPos, setDetailPopupPos] = useState({
+    x: 0,
+    y: 0,
+  });
   const [detailInfo, setDetailInfo] = useState(null);
 
   // Drag/resize states
@@ -68,7 +73,8 @@ export default function Calendar() {
   // For patient search
   const [patientName, setPatientName] = useState(''); // typed string
   const [patientResults, setPatientResults] = useState([]); // array of patient objects
-  const [patientDropdownOpen, setPatientDropdownOpen] = useState(false);
+  const [patientDropdownOpen, setPatientDropdownOpen] =
+    useState(false);
   const patientDropdownRef = useRef(null);
 
   // Calendar layout constants
@@ -98,35 +104,47 @@ export default function Calendar() {
       try {
         const dateStr = formatYYYYMMDD(currentDate);
         const serverData = await getAppointments(dateStr);
-        const arr = Array.isArray(serverData.data) ? serverData.data : serverData;
+        const arr = Array.isArray(serverData.data)
+          ? serverData.data
+          : serverData;
+        console.log('arr', arr);
         const mapped = arr.map((item) => ({
           id: item._id,
-          title: item.title || 'Appointment',
+          title: item.appoitment_reason || 'Appointment',
           start: new Date(item.start_time),
           end: new Date(item.end_time),
-          patient_id: item.patient_id,
-          branch_id: item.branch_id,
-          status: item.status
+          patient_id: item.patient_id._id,
+          branch_id: item.branch_id._id,
+          patient_name: item.patient_id?.name || '(none)',
+          branch_name: item.branch_id?.name || '(none)',
+          status: item.status,
         }));
         setAppointments(mapped);
       } catch (err) {
         console.error('Error loading appointments:', err);
       }
     })();
-  }, [currentDate]);
+  }, [currentDate, appointments]);
 
   // ----------- Title Dropdown outside-click -----------
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target)
+      ) {
         setIsDropdownOpen(false);
       }
-      if (patientDropdownRef.current && !patientDropdownRef.current.contains(event.target)) {
+      if (
+        patientDropdownRef.current &&
+        !patientDropdownRef.current.contains(event.target)
+      ) {
         setPatientDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () =>
+      document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // ----------- Searching for Patients -----------
@@ -205,9 +223,12 @@ export default function Calendar() {
     const date = new Date();
     date.setHours(hour, minute, 0, 0);
     // Use toLocaleTimeString to format the time in 12-hour format with AM/PM.
-    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true });
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true,
+    });
   }
-
 
   // ------- Double-click => Create new appointment -------
   function handleDoubleClick(e) {
@@ -236,7 +257,7 @@ export default function Calendar() {
       end_time: end.toISOString(),
       patient_id: '',
       status: 'UPCOMING',
-      branch_id: ''
+      branch_id: '',
     });
     setPatientName('');
     setInputValue('');
@@ -252,7 +273,7 @@ export default function Calendar() {
         end_time: newAppt.end_time,
         patient_id: newAppt.patient_id,
         status: newAppt.status,
-        branch_id: newAppt.branch_id
+        branch_id: newAppt.branch_id,
       };
       const created = await createAppointment(payload);
       setAppointments((prev) => [
@@ -264,7 +285,7 @@ export default function Calendar() {
           end: new Date(created.end_time),
           patient_id: created.patient_id,
           branch_id: created.branch_id,
-          status: created.status
+          status: created.status,
         },
       ]);
       setShowCreateDrawer(false);
@@ -275,32 +296,40 @@ export default function Calendar() {
         end_time: '',
         patient_id: '',
         status: 'UPCOMING',
-        branch_id: ''
+        branch_id: '',
       });
     } catch (err) {
       console.error('Error creating appointment:', err);
     }
   }
 
+  const [mouseClickType, setmouseClickType] = useState('default');
+
   // ------- Right-click => show detail or delete -------
-  async function handleRightClick(e, appt) {
-    const confirmDel = window.confirm('Delete appt? (Cancel=View details)');
+  async function handleRightClick(appt, clickType) {
+    setmouseClickType(clickType);
+    const confirmDel = window.confirm('Delete appointment?');
+
+    console.log('confirmDel', confirmDel);
+
     if (confirmDel) {
       try {
         await deleteAppointmentById(appt.id);
-        setAppointments((prev) => prev.filter((a) => a.id !== appt.id));
+        setAppointments((prev) =>
+          prev.filter((a) => a.id !== appt.id)
+        );
       } catch (err) {
         console.error('Error deleting appointment:', err);
       }
     } else {
-      await showAppointmentDetail(e.clientX, e.clientY, appt.id);
+      // await showAppointmentDetail(e.clientX, e.clientY, appt.id);
     }
   }
 
   async function showAppointmentDetail(x, y, id) {
     try {
       const detail = await getAppointmentById(id);
-      setDetailInfo(detail);
+      setDetailInfo(detail.data);
       setDetailPopupPos({ x, y });
       setShowDetailPopup(true);
     } catch (err) {
@@ -315,20 +344,26 @@ export default function Calendar() {
       const snapMins = 5;
       if (draggingAppt) {
         const dy = e.clientY - initialMouseY;
-        const delta = Math.round((dy / halfHourHeight) * 30 / snapMins) * snapMins;
+        const delta =
+          Math.round(((dy / halfHourHeight) * 30) / snapMins) *
+          snapMins;
         const newStart = new Date(initialTimes.start);
         newStart.setMinutes(newStart.getMinutes() + delta);
         const newEnd = new Date(initialTimes.end);
         newEnd.setMinutes(newEnd.getMinutes() + delta);
         setAppointments((prev) =>
           prev.map((a) =>
-            a.id === draggingAppt.id ? { ...a, start: newStart, end: newEnd } : a
+            a.id === draggingAppt.id
+              ? { ...a, start: newStart, end: newEnd }
+              : a
           )
         );
       }
       if (resizingAppt) {
         const dy = e.clientY - initialMouseY;
-        const delta = Math.round((dy / halfHourHeight) * 30 / snapMins) * snapMins;
+        const delta =
+          Math.round(((dy / halfHourHeight) * 30) / snapMins) *
+          snapMins;
         const copy = { ...resizingAppt };
         if (resizeDir === 'top') {
           const ns = new Date(initialTimes.start);
@@ -339,7 +374,9 @@ export default function Calendar() {
           ne.setMinutes(ne.getMinutes() + delta);
           if (ne > copy.start) copy.end = ne;
         }
-        setAppointments((prev) => prev.map((a) => (a.id === resizingAppt.id ? copy : a)));
+        setAppointments((prev) =>
+          prev.map((a) => (a.id === resizingAppt.id ? copy : a))
+        );
       }
     }
 
@@ -361,7 +398,13 @@ export default function Calendar() {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [draggingAppt, resizingAppt, initialMouseY, initialTimes, resizeDir]);
+  }, [
+    draggingAppt,
+    resizingAppt,
+    initialMouseY,
+    initialTimes,
+    resizeDir,
+  ]);
 
   // ------- Finalize drag/resize changes -------
   async function commitEdit(id) {
@@ -374,7 +417,7 @@ export default function Calendar() {
         title: apt.title,
         patient_id: apt.patient_id,
         branch_id: apt.branch_id,
-        status: apt.status
+        status: apt.status,
       });
       setAppointments((prev) =>
         prev.map((a) =>
@@ -386,7 +429,7 @@ export default function Calendar() {
               end: new Date(updated.end_time),
               patient_id: updated.patient_id,
               branch_id: updated.branch_id,
-              status: updated.status
+              status: updated.status,
             }
             : a
         )
@@ -418,7 +461,8 @@ export default function Calendar() {
       );
       if (!isInWeek) return null;
       const apptStartHour = st.getHours() + st.getMinutes() / 60;
-      const top = headerHeight + (apptStartHour - startHour) * hourHeight;
+      const top =
+        headerHeight + (apptStartHour - startHour) * hourHeight;
       const durationHrs = (en - st) / 3600000;
       const height = durationHrs * hourHeight;
       const dayW = 100 / 7;
@@ -429,8 +473,9 @@ export default function Calendar() {
           style={{
             position: 'absolute',
             top: `${top}px`,
-            left: `calc(${leftPct}% + 40px)`,
-            width: `${dayW}%`,
+            left: `calc(${leftPct}% + 30px)`,
+            width: `calc(${dayW}% - 20px)`,
+            // width: `${dayW}%`,
             height: `${height}px`,
             backgroundColor: '#90caf9',
             borderRadius: '4px',
@@ -441,30 +486,38 @@ export default function Calendar() {
             display: 'flex',
             flexDirection: 'column',
             zIndex: 10,
+
           }}
           onMouseDown={(e) => {
+            // setmouseClickType('default');
             e.stopPropagation();
+            e.preventDefault();
             // Check for right-click
             if (e.button === 2) {
-              e.preventDefault();
-              handleRightClick(e, apt);
-            } else {
+              showAppointmentDetail(e.clientX, e.clientY, apt.id);
+              // handleRightClick(apt);
+            } else if (e.button === 0) {
               // Drag/resize logic
               if (e.target.className.includes('resize-handle')) {
-                const dir = e.target.className.includes('top') ? 'top' : 'bottom';
+                const dir = e.target.className.includes('top')
+                  ? 'top'
+                  : 'bottom';
                 setResizingAppt(apt);
                 setResizeDir(dir);
               } else {
                 setDraggingAppt(apt);
               }
               setInitialMouseY(e.clientY);
-              setInitialTimes({ start: new Date(apt.start), end: new Date(apt.end) });
+              setInitialTimes({
+                start: new Date(apt.start),
+                end: new Date(apt.end),
+              });
             }
           }}
           onContextMenu={(e) => e.preventDefault()}
         >
           <div
-            className="resize-handle resize-handle-top"
+            className='resize-handle resize-handle-top'
             style={{
               height: '6px',
               width: '100%',
@@ -474,13 +527,82 @@ export default function Calendar() {
               left: 0,
             }}
           />
-          <strong>{apt.title}</strong>
-          <span>
-            {st.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })} -{' '}
-            {en.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
-          </span>
+
+          <img
+            className='absolute right-[5px] top-[5px] w-[14px] cursor-pointer '
+            src={crossIcon}
+            alt=''
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              handleRightClick(apt, 'cross');
+            }}
+          />
+          <div className='hide-scroll' style={{ overflowY: 'auto', maxHeight: '100%', scrollbarWidth: 'none', msOverflowStyle: 'none', }}>
+            <div className='flex justify-between items-center'>
+              <strong className='text-[14px] font-bold'>{apt.title}</strong>
+              <span className='pr-10'>
+                {st.toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false,
+                })}{' '}
+                -{' '}
+                {en.toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false,
+                })}
+              </span>
+            </div>
+
+            <p className='text-[14px] font-bold'>patient : {apt.patient_name}</p>
+            <p className='text-[14px] font-bold'>branch : {apt.branch_name}</p>
+            <div className='btn flex-row-reverse'>
+              <button
+                className={`text-xs py-0 px-1 rounded-sm font-small inline-block text-[10px] h-10 leading-tight 
+                   ${apt.status === 'UPCOMING' ? 'bg-blue-100 text-blue-700' :
+                  apt.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
+                    'bg-red-100 text-red-700'
+                  }`}
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+
+                  // Determine next status in rotation
+                  const statusCycle = ['UPCOMING', 'COMPLETED', 'CANCELLED'];
+                  const currentIndex = statusCycle.indexOf(apt.status);
+                  const nextStatus = statusCycle[(currentIndex + 1) % statusCycle.length];
+
+                  try {
+                    // Update appointment with new status
+                    await editAppointment(apt.id, {
+                      start_time: apt.start.toISOString(),
+                      end_time: apt.end.toISOString(),
+                      title: apt.title,
+                      patient_id: apt.patient_id,
+                      branch_id: apt.branch_id,
+                      status: nextStatus
+                    });
+
+                    // Update local state
+                    setAppointments(prev =>
+                      prev.map(a =>
+                        a.id === apt.id ? { ...a, status: nextStatus } : a
+                      )
+                    );
+                  } catch (err) {
+                    console.error('Error updating appointment status:', err);
+                  }
+                }}
+              >
+                {apt.status}
+              </button>
+            </div>
+
+          </div>
           <div
-            className="resize-handle resize-handle-bottom"
+            className='resize-handle resize-handle-bottom'
             style={{
               height: '6px',
               width: '100%',
@@ -496,10 +618,17 @@ export default function Calendar() {
   }
 
   // ------- Main Render -------
-  const calendarHeight = timeSlots.length * halfHourHeight + headerHeight;
+  const calendarHeight =
+    timeSlots.length * halfHourHeight + headerHeight;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh',
+      }}
+    >
       {/* Top Navigation Bar */}
       <div
         style={{
@@ -508,20 +637,34 @@ export default function Calendar() {
           backgroundColor: '#f5f5f5',
         }}
       >
-        <Button variant="outlined" onClick={() => navigate('today')} style={{ marginRight: '8px' }}>
+        <Button
+          variant='outlined'
+          onClick={() => navigate('today')}
+          style={{ marginRight: '8px' }}
+        >
           Today
         </Button>
-        <Button variant="outlined" onClick={() => navigate('prev')} style={{ marginRight: '8px' }}>
+        <Button
+          variant='outlined'
+          onClick={() => navigate('prev')}
+          style={{ marginRight: '8px' }}
+        >
           &lt;
         </Button>
-        <Button variant="outlined" onClick={() => navigate('next')} style={{ marginRight: '8px' }}>
+        <Button
+          variant='outlined'
+          onClick={() => navigate('next')}
+          style={{ marginRight: '8px' }}
+        >
           &gt;
         </Button>
         <strong>{formatRange()}</strong>
       </div>
 
       {/* Main content area */}
-      <div style={{ flex: 1, position: 'relative', overflow: 'auto' }}>
+      <div
+        style={{ flex: 1, position: 'relative', overflow: 'auto' }}
+      >
         <div
           ref={calendarRef}
           style={{
@@ -543,7 +686,7 @@ export default function Calendar() {
               height: `${headerHeight}px`,
               backgroundColor: '#fff',
               borderBottom: '1px solid #ddd',
-              zIndex: 5,
+              zIndex: 15,
             }}
           >
             {getWeekDates().map((date, i) => (
@@ -560,9 +703,13 @@ export default function Calendar() {
                 }}
               >
                 <div style={{ fontSize: '14px', color: '#777' }}>
-                  {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                  {date.toLocaleDateString('en-US', {
+                    weekday: 'short',
+                  })}
                 </div>
-                <div style={{ fontSize: '18px' }}>{date.getDate()}</div>
+                <div style={{ fontSize: '18px' }}>
+                  {date.getDate()}
+                </div>
               </div>
             ))}
           </div>
@@ -604,7 +751,7 @@ export default function Calendar() {
               display: 'flex',
               marginLeft: '60px',
               height: `${calendarHeight - headerHeight}px`,
-              marginTop: `${headerHeight}px`
+              marginTop: `${headerHeight}px`,
             }}
           >
             {getWeekDates().map((d, idx) => (
@@ -623,7 +770,8 @@ export default function Calendar() {
                     style={{
                       height: `${halfHourHeight}px`,
                       borderBottom: '1px solid #eee',
-                      backgroundColor: slot.minute === 0 ? '#fff' : '#fafafa',
+                      backgroundColor:
+                        slot.minute === 0 ? '#fff' : '#fafafa',
                     }}
                   />
                 ))}
@@ -638,20 +786,20 @@ export default function Calendar() {
 
       {/* New Appointment Drawer */}
       <Drawer
-        anchor="right"
+        anchor='right'
         open={showCreateDrawer}
         onClose={() => setShowCreateDrawer(false)}
       >
         <Box sx={{ width: 400, p: 2 }}>
-          <Typography variant="h6" gutterBottom>
+          <Typography variant='h6' gutterBottom>
             New Appointment
           </Typography>
           {/* Treatment Title and Dropdown */}
           <Box sx={{ mb: 2, position: 'relative' }} ref={dropdownRef}>
             <TextField
               fullWidth
-              label="Select Title"
-              placeholder="Select Title"
+              label='Select Title'
+              placeholder='Select Title'
               value={inputValue}
               onChange={(e) => {
                 setInputValue(e.target.value);
@@ -678,8 +826,10 @@ export default function Calendar() {
                 }}
               >
                 {treatmentOptions
-                  .filter(option =>
-                    option.toLowerCase().includes(inputValue.toLowerCase())
+                  .filter((option) =>
+                    option
+                      .toLowerCase()
+                      .includes(inputValue.toLowerCase())
                   )
                   .map((option, index) => (
                     <Box
@@ -698,13 +848,15 @@ export default function Calendar() {
             )}
           </Box>
 
-
           {/* Patient Search & Select */}
-          <Box sx={{ mb: 2, position: 'relative' }} ref={patientDropdownRef}>
+          <Box
+            sx={{ mb: 2, position: 'relative' }}
+            ref={patientDropdownRef}
+          >
             <InputLabel shrink>Patient Name</InputLabel>
             <TextField
               fullWidth
-              placeholder="Type to search..."
+              placeholder='Type to search...'
               value={patientName}
               onChange={(e) => {
                 setPatientName(e.target.value);
@@ -750,10 +902,12 @@ export default function Calendar() {
             <InputLabel>Branch</InputLabel>
             <Select
               value={newAppt.branch_id}
-              label="Branch"
-              onChange={(e) => setNewAppt({ ...newAppt, branch_id: e.target.value })}
+              label='Branch'
+              onChange={(e) =>
+                setNewAppt({ ...newAppt, branch_id: e.target.value })
+              }
             >
-              <MenuItem value="">
+              <MenuItem value=''>
                 <em>Select Branch</em>
               </MenuItem>
               {branches.map((branch) => (
@@ -769,12 +923,14 @@ export default function Calendar() {
             <InputLabel>Status</InputLabel>
             <Select
               value={newAppt.status}
-              label="Status"
-              onChange={(e) => setNewAppt({ ...newAppt, status: e.target.value })}
+              label='Status'
+              onChange={(e) =>
+                setNewAppt({ ...newAppt, status: e.target.value })
+              }
             >
-              <MenuItem value="UPCOMING">UPCOMING</MenuItem>
-              <MenuItem value="COMPLETED">COMPLETED</MenuItem>
-              <MenuItem value="CANCELLED">CANCELLED</MenuItem>
+              <MenuItem value='UPCOMING'>UPCOMING</MenuItem>
+              <MenuItem value='COMPLETED'>COMPLETED</MenuItem>
+              <MenuItem value='CANCELLED'>CANCELLED</MenuItem>
             </Select>
           </FormControl>
 
@@ -782,43 +938,65 @@ export default function Calendar() {
           <Box sx={{ mb: 2 }}>
             <InputLabel shrink>Start Time</InputLabel>
             <TextField
-              type="time"
+              type='time'
               fullWidth
               value={
                 newAppt.start_time
-                  ? new Date(newAppt.start_time).toTimeString().slice(0, 5)
+                  ? new Date(newAppt.start_time)
+                    .toTimeString()
+                    .slice(0, 5)
                   : ''
               }
               onChange={(e) => {
                 const [hours, minutes] = e.target.value.split(':');
-                const newDate = new Date(newAppt.start_time || new Date());
+                const newDate = new Date(
+                  newAppt.start_time || new Date()
+                );
                 newDate.setHours(hours, minutes, 0);
-                setNewAppt({ ...newAppt, start_time: newDate.toISOString() });
+                setNewAppt({
+                  ...newAppt,
+                  start_time: newDate.toISOString(),
+                });
               }}
               sx={{ mb: 2 }}
             />
             <InputLabel shrink>End Time</InputLabel>
             <TextField
-              type="time"
+              type='time'
               fullWidth
               value={
                 newAppt.end_time
-                  ? new Date(newAppt.end_time).toTimeString().slice(0, 5)
+                  ? new Date(newAppt.end_time)
+                    .toTimeString()
+                    .slice(0, 5)
                   : ''
               }
               onChange={(e) => {
                 const [hours, minutes] = e.target.value.split(':');
-                const newDate = new Date(newAppt.end_time || new Date());
+                const newDate = new Date(
+                  newAppt.end_time || new Date()
+                );
                 newDate.setHours(hours, minutes, 0);
-                setNewAppt({ ...newAppt, end_time: newDate.toISOString() });
+                setNewAppt({
+                  ...newAppt,
+                  end_time: newDate.toISOString(),
+                });
               }}
             />
           </Box>
 
           {/* Action Buttons */}
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-            <Button onClick={() => setShowCreateDrawer(false)}>Cancel</Button>
-            <Button variant="contained" onClick={handleCreateAppt}>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 1,
+            }}
+          >
+            <Button onClick={() => setShowCreateDrawer(false)}>
+              Cancel
+            </Button>
+            <Button variant='contained' onClick={handleCreateAppt}>
               Create
             </Button>
           </Box>
@@ -832,7 +1010,7 @@ export default function Calendar() {
             position: 'fixed',
             left: detailPopupPos.x,
             top: detailPopupPos.y,
-            width: '200px',
+            width: '250px',
             backgroundColor: '#fff',
             border: '1px solid #ccc',
             padding: '10px',
@@ -841,21 +1019,100 @@ export default function Calendar() {
             borderRadius: '4px',
           }}
         >
-          <Typography variant="subtitle1">Appointment Detail</Typography>
-          <Typography variant="body2">
-            <strong>Reason:</strong> {detailInfo.title}
+          <Typography variant='subtitle1'>
+            Appointment Detail
           </Typography>
           <Typography variant="body2">
-            <strong>Patient:</strong> {detailInfo.patient_id?.name || '(none)'}
+            <strong>
+              {new Date(detailInfo.start_time).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              })}{" "}
+              -{" "}
+              {new Date(detailInfo.end_time).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              })}
+            </strong>
           </Typography>
-          <Typography variant="body2">
-            <strong>Branch:</strong> {detailInfo.branch_id?.name || '(none)'}
+          <Typography variant='body2'>
+            <strong>Reason:</strong> {detailInfo.appoitment_reason}
           </Typography>
-          <Typography variant="body2">
-            <strong>Status:</strong> {detailInfo.status}
+          <Typography variant='body2'>
+            <strong>Patient:</strong>{' '}
+            {detailInfo.patient_id?.name || '(none)'}
           </Typography>
-          <Box sx={{ mt: 1, textAlign: 'right' }}>
-            <Button size="small" onClick={() => setShowDetailPopup(false)}>
+          <Typography variant='body2'>
+            <strong>Branch:</strong>{' '}
+            {detailInfo.branch_id?.name || '(none)'}
+          </Typography>
+
+          {/* Status Dropdown Selector */}
+          <FormControl fullWidth size="small" sx={{ mt: 1, mb: 1 }}>
+            <InputLabel id="status-select-label">Status</InputLabel>
+            <Select
+              labelId="status-select-label"
+              id="status-select"
+              value={detailInfo.status}
+              label="Status"
+              onChange={async (e) => {
+                const newStatus = e.target.value;
+                try {
+                  // Update appointment with new status
+                  await editAppointment(detailInfo._id, {
+                    start_time: detailInfo.start_time,
+                    end_time: detailInfo.end_time,
+                    appoitment_reason: detailInfo.appoitment_reason,
+                    patient_id: detailInfo.patient_id?._id,
+                    branch_id: detailInfo.branch_id?._id,
+                    status: newStatus
+                  });
+
+                  // Update detail popup state
+                  setDetailInfo({ ...detailInfo, status: newStatus });
+
+                  // Update appointment list state
+                  setAppointments(prev => prev.map(apt =>
+                    apt.id === detailInfo._id ? { ...apt, status: newStatus } : apt
+                  ));
+                } catch (err) {
+                  console.error('Error updating appointment status:', err);
+                }
+              }}
+            >
+              <MenuItem value="UPCOMING">UPCOMING</MenuItem>
+              <MenuItem value="COMPLETED">COMPLETED</MenuItem>
+              <MenuItem value="CANCELLED">CANCELLED</MenuItem>
+            </Select>
+          </FormControl>
+
+          <Box sx={{ mt: 1, display: 'flex', justifyContent: 'space-between' }}>
+            <Button
+              size='small'
+              variant="outlined"
+              color="error"
+              onClick={async () => {
+                try {
+                  const confirmDel = window.confirm('Delete appointment?');
+                  if (confirmDel) {
+                    await deleteAppointmentById(detailInfo._id);
+                    setAppointments(prev => prev.filter(a => a.id !== detailInfo._id));
+                    setShowDetailPopup(false);
+                  }
+                } catch (err) {
+                  console.error('Error deleting appointment:', err);
+                }
+              }}
+            >
+              Delete
+            </Button>
+            <Button
+              size='small'
+              variant="contained"
+              onClick={() => setShowDetailPopup(false)}
+            >
               Close
             </Button>
           </Box>

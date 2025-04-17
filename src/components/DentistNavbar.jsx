@@ -321,9 +321,9 @@ const DentistNavbar = () => {
 
   return (
     <>
-      <nav className="bg-blue-200 bg-opacity-50 sticky top-0 z-40 text-sm">
-        <div className="container mx-auto px-3 py-3 flex items-center justify-between">
-          <h1 className="text-base font-bold text-blue-700">
+      <nav className="bg-blue-200 bg-opacity-40 sticky top-0 z-40 text-sm">
+        <div className="container mx-auto px-0 py-3 flex items-center justify-between">
+          <h1 className="text-[26px] font-bold text-blue-600 ">
             Kankariya Dental
           </h1>
           <div className="flex items-center space-x-2">
@@ -350,7 +350,7 @@ const DentistNavbar = () => {
               )}
             </div>
             <button
-              className="bg-white bg-opacity-80 text-blue-700 px-3 py-1 rounded-md border border-blue-300 text-sm"
+              className="bg-white bg-opacity-80 text-blue-300 px-3 py-1 rounded-md border border-blue-300 text-sm"
               onClick={() => setIsNewPatientDrawerOpen(true)}
             >
               New Patient
