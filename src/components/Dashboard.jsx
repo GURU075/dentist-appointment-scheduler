@@ -1007,7 +1007,7 @@ export default function Calendar() {
       {showDetailPopup && detailInfo && (
         <div
           style={{
-            position: 'fixed',
+            position: 'absolute',
             left: detailPopupPos.x,
             top: detailPopupPos.y,
             width: '250px',
