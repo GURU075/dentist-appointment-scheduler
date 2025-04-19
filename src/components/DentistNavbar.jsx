@@ -297,11 +297,20 @@ const DentistNavbar = () => {
 
   // Update an existing patient
   const handleUpdatePatient = async (updatedData) => {
+    // console.log('Updating patient:', updatedData);
+    // console.log('Selected patient ID:', selectedPatient._id);
+    // console.log('Selected patient custom ID:', selectedPatient.custom_id);
     try {
-      await updatePatientDetails(selectedPatient._id, updatedData);
-      console.log('Patient updated:', updatedData);
+      
+      // await updatePatientDetails(selectedPatient._id, updatedData);
+      
+      await updatePatientDetails(selectedPatient.custom_id, updatedData);
+
+      // console.log('Patient updated:', updatedData);
       setIsPatientDrawerOpen(false);
     } catch (err) {
+      // console.error('Updating patient with ID:', selectedPatient._id);
+
       console.error('Error updating patient:', err);
       alert(err?.response?.data?.message || 'Error updating patient');
     }
