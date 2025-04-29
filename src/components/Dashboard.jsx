@@ -477,7 +477,7 @@ export default function Calendar() {
             width: `calc(${dayW}% - 20px)`,
             // width: `${dayW}%`,
             height: `${height}px`,
-            backgroundColor: '#90caf9',
+            backgroundColor: '#f99090',
             borderRadius: '4px',
             padding: '4px',
             boxSizing: 'border-box',
@@ -561,9 +561,9 @@ export default function Calendar() {
             <div className='btn flex-row-reverse'>
               <button
                 className={`text-xs py-0 px-1 rounded-sm font-small inline-block text-[10px] h-10 leading-tight 
-                   ${apt.status === 'UPCOMING' ? 'bg-blue-100 text-blue-700' :
-                  apt.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                    'bg-red-100 text-red-700'
+                   ${apt.status === 'UPCOMING' ? 'bg-blue-100 text-blue-300' :
+                  apt.status === 'COMPLETED' ? 'bg-green-100 text-green-400' :
+                    'bg-red-100 text-red-600'
                   }`}
                 onClick={async (e) => {
                   e.stopPropagation();
@@ -640,21 +640,21 @@ export default function Calendar() {
         <Button
           variant='outlined'
           onClick={() => navigate('today')}
-          style={{ marginRight: '8px' }}
+          style={{ marginRight: '8px' , color: '#b81818' ,borderColor: '#b81818' }}
         >
           Today
         </Button>
         <Button
           variant='outlined'
           onClick={() => navigate('prev')}
-          style={{ marginRight: '8px' }}
+          style={{ marginRight: '8px', color: '#b81818' ,borderColor: '#b81818'}}
         >
           &lt;
         </Button>
         <Button
           variant='outlined'
           onClick={() => navigate('next')}
-          style={{ marginRight: '8px' }}
+          style={{ marginRight: '8px', color: '#b81818',borderColor: '#b81818'}}
         >
           &gt;
         </Button>
